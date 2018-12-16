@@ -8,6 +8,7 @@
 
 #include <SDL2/SDL.h>
 #include <cassert>
+#include <cstdlib>
 
 // TODO: RenderBoundingBox
 // TODO: render_glyph
@@ -85,34 +86,50 @@ std::array<uint32_t,16*256> render_utf8str(const char *utf8str) {
     int render_col = 0;
 
     for (const char *c = utf8str; *c != '\0'; c++) {
-        // Assert UTF-8 byte represents 1 codepoint, without surrogates.
-        assert((*c & 0b10000000) == 0);
+        uint32_t c_codepoint = 0;
 
-        // Represents either 16(8*8)/32((8 + 8)*8) bytes glyph.
-        std::optional<std::vector<uint8_t>> glyph_o = unifont_lookup(*(unsigned char *)c); // TODO: Is this safe?
-        //std::optional<std::vector<uint8_t>> glyph_o = unifont_lookup(0xAC00); // TODO: Is this safe?
+        // 0b1100 0000:  -64
+        // 0b1101 1111:  -33
+        // 0b1110 0000:  -32
+        // 0b1110 1111:  -17
+        // 0b1111 0000:  -16
+        // 0b1111 0111:   -9
+        // 0b1000 0000: -128
+        // 0b1011 1111:  -65
+
+        if (*c > 0) { // 1 byte code point
+            c_codepoint = (uint32_t) *c; // Safe to cast: Value is always positive.
+            assert(c_codepoint > 0);
+        } else if (*c >= -64 && *c <= -33) { // 2 byte code point
+            assert((*c - (-64)) >= 0);
+            if ((*c - (-64)) == 0) {
+                std::cerr << "W render_utf8str: Insignificant UTF-8 leading byte; halting." << std::endl;
+                return render;
+            }
+            c_codepoint = (uint32_t) (*c - (-64)) << 6;
+            assert(c_codepoint >= 0b1000000 && c_codepoint <= 0b11111000000);
+
+            if (*++c > -65) {
+                std::cerr << "W render_utf8str: Invalid UTF-8 surrogate found; halting." << std::endl;
+                return render;
+            }
+            assert((*c - (-128)) >= 0);
+            c_codepoint += (uint32_t) (*c - (-128));
+            assert(c_codepoint >= 0b1000000 && c_codepoint <= 0b11111111111);
+        } else if (*c >= -32 && *c <= -17) { // 3 byte code point
+            assert(0);
+        } else if (*c >= -16 && *c <= -9) { // 4 byte code point
+            assert(0);
+        } else {
+            std::cerr << "W render_utf8str: Invalid UTF-8 byte (" << *c << ") found; halting." << std::endl;
+            return render;
+        }
+
+        // Represents either 16 or 32 bytes glyph.
+        std::optional<std::vector<uint8_t>> glyph_o = unifont_lookup(c_codepoint);
         assert(glyph_o.has_value());
         std::vector<uint8_t> glyph = glyph_o.value();
         assert(glyph.size() == 16 || glyph.size() == 32);
-
-        // AC00:
-        // 00 00 00 00
-        // 00 10 00 10
-        // 1F 90 00 90
-        // 00 90 00 9E
-        // 01 10 01 10
-        // 02 10 04 10
-        // 18 10 00 10
-        // 00 10 00 00
-
-//        std::vector<uint8_t> glyph = {0x00, 0x00, 0x00, 0x00,
-//                                      0x00, 0x10, 0x00, 0x10,
-//                                      0x1F, 0x90, 0x00, 0x90,
-//                                      0x00, 0x90, 0x00, 0x9E,
-//                                      0x01, 0x10, 0x01, 0x10,
-//                                      0x02, 0x10, 0x04, 0x10,
-//                                      0x18, 0x10, 0x00, 0x10,
-//                                      0x00, 0x10, 0x00, 0x00};
 
         if (glyph.size() == 16) { // Each byte represents a row
             for (int i = 0; i < 16; i++) { // For each pixel line = i'th row
@@ -309,7 +326,7 @@ int main() {
 //        pixels[i * 640 + 7] = bytes[i] & 1u ? 0xFF000000 : 0xFFFFFFFF;
 //    }
 
-    std::array<uint32_t,16*256> render = render_utf8str("Hello world!");
+    std::array<uint32_t,16*256> render = render_utf8str("abcd ¢ a");
 
     memcpy(pixels, render.data(), 16 * 256 * sizeof(Uint32));
 
