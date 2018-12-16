@@ -117,9 +117,61 @@ std::array<uint32_t,16*256> render_utf8str(const char *utf8str) {
             c_codepoint += (uint32_t) (*c - (-128));
             assert(c_codepoint >= 0b1000000 && c_codepoint <= 0b11111111111);
         } else if (*c >= -32 && *c <= -17) { // 3 byte code point
-            assert(0);
+            assert((*c - (-32)) >= 0);
+            if ((*c - (-32)) == 0) {
+                std::cerr << "W render_utf8str: Insignificant UTF-8 leading byte; halting." << std::endl;
+                return render;
+            }
+            c_codepoint = (uint32_t) (*c - (-32)) << 12;
+            assert(c_codepoint >= 0b1000000000000 && c_codepoint <= 0b1111000000000000);
+
+            if (*++c > -65) {
+                std::cerr << "W render_utf8str: Invalid UTF-8 surrogate found; halting." << std::endl;
+                return render;
+            }
+            assert((*c - (-128)) >= 0);
+            c_codepoint += (uint32_t) (*c - (-128)) << 6;
+            assert(c_codepoint >= 0b1000000000000 && c_codepoint <= 0b1111111111000000);
+
+            if (*++c > -65) {
+                std::cerr << "W render_utf8str: Invalid UTF-8 surrogate found; halting." << std::endl;
+                return render;
+            }
+            assert((*c - (-128)) >= 0);
+            c_codepoint += (uint32_t) (*c - (-128));
+            assert(c_codepoint >= 0b1000000000000 && c_codepoint <= 0b1111111111111111);
         } else if (*c >= -16 && *c <= -9) { // 4 byte code point
-            assert(0);
+            assert((*c - (-16)) >= 0);
+            if ((*c - (-16)) == 0) {
+                std::cerr << "W render_utf8str: Insignificant UTF-8 leading byte; halting." << std::endl;
+                return render;
+            }
+            c_codepoint = (uint32_t) (*c - (-16)) << 18;
+            assert(c_codepoint >= 0b1000000000000000000 && c_codepoint <= 0b111000000000000000000);
+
+            if (*++c > -65) {
+                std::cerr << "W render_utf8str: Invalid UTF-8 surrogate found; halting." << std::endl;
+                return render;
+            }
+            assert((*c - (-128)) >= 0);
+            c_codepoint += (uint32_t) (*c - (-128)) << 12;
+            assert(c_codepoint >= 0b1000000000000000000 && c_codepoint <= 0b111111111000000000000);
+
+            if (*++c > -65) {
+                std::cerr << "W render_utf8str: Invalid UTF-8 surrogate found; halting." << std::endl;
+                return render;
+            }
+            assert((*c - (-128)) >= 0);
+            c_codepoint += (uint32_t) (*c - (-128)) << 6;
+            assert(c_codepoint >= 0b1000000000000000000 && c_codepoint <= 0b111111111111111000000);
+
+            if (*++c > -65) {
+                std::cerr << "W render_utf8str: Invalid UTF-8 surrogate found; halting." << std::endl;
+                return render;
+            }
+            assert((*c - (-128)) >= 0);
+            c_codepoint += (uint32_t) (*c - (-128));
+            assert(c_codepoint >= 0b1000000000000000000 && c_codepoint <= 0b111111111111111111111);
         } else {
             std::cerr << "W render_utf8str: Invalid UTF-8 byte (" << *c << ") found; halting." << std::endl;
             return render;
@@ -207,7 +259,7 @@ int main() {
     // combine: 30 0C 00 00 00 00 3C 42 02 3E 42 42 46 3A 00 00
     // latin small a with grave: 00E0:0000300C00003C42023E4242463A0000
 
-    std::array<uint32_t,16*256> render = render_utf8str("abcd ¢ a");
+    std::array<uint32_t,16*256> render = render_utf8str("abcd ¢ a 가나");
 
     memcpy(pixels, render.data(), 16 * 256 * sizeof(Uint32));
 
